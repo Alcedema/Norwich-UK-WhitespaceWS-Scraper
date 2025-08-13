@@ -86,7 +86,7 @@ def add_events(cal: Calendar, items: list[tuple[str, date]]) -> int:
         debug(f"Adding event: {summary} on {d}")
         ev = Event(name=summary)
         ev.begin = d
-        ev.end = d + timedelta(days=1)
+        ev.make_all_day()
         ev.uid = make_uid(summary, d)
         ev.created = ev.last_modified = datetime.now(UTC)
         cal.events.add(ev); added += 1
