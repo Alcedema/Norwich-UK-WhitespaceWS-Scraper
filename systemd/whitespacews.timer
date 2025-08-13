@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Norwich WhitespaceWS Scraper on a schedule
+
+[Timer]
+# Run once a week; adjust OnCalendar to desired interval
+OnCalendar=weekly
+Persistent=true
+Unit=whitespacews.service
+
+[Install]
+WantedBy=timers.target

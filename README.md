@@ -4,6 +4,13 @@ Norwich City Council moved to WhitespaceWS to fulfil their waste services and to
 
 # Setup
 
+Clone the repository somewhere persistent, for example under `/opt`:
+
+```
+sudo git clone https://github.com/Alcedema/Norwich-UK-WhitespaceWS-Scraper /opt/Norwich-UK-WhitespaceWS-Scraper
+cd /opt/Norwich-UK-WhitespaceWS-Scraper
+```
+
 Copy `.env.example` to `.env` and edit the environment variables.
 
 ## Docker
@@ -24,7 +31,13 @@ Create a virtual environment and install dependencies:
 python -m venv .venv
 . .venv/bin/activate
 pip install -r requirements.txt
-playwright install
+playwright install chromium
+```
+
+Playwright can also install browser dependencies on most distributions with:
+
+```
+playwright install --with-deps chromium
 ```
 
 Run the scraper:
@@ -36,6 +49,18 @@ python scrape.py
 
 The script automatically loads the `.env` file. Schedule it with your own
 cron job or systemd timer, or set `CRON_PATTERN` for built-in scheduling.
+
+## systemd
+
+Example unit files are provided in [`systemd/`](systemd). They assume the repository
+resides in `/opt/Norwich-UK-WhitespaceWS-Scraper` with dependencies installed in a
+Python virtual environment at `.venv`:
+
+- `whitespacews-cron.service` runs the scraper continuously using the built-in cron pattern.
+- `whitespacews.service` and `whitespacews.timer` run the scraper on a schedule you control with `OnCalendar`.
+
+Copy the desired files to `/etc/systemd/system/`, tweak schedules or `ExecStart`
+if your environment differs, then enable with `systemctl enable --now <unit>`.
 
 ## Environment variables
 

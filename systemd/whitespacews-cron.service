@@ -1,0 +1,15 @@
+[Unit]
+Description=Norwich WhitespaceWS Scraper (internal schedule)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/Norwich-UK-WhitespaceWS-Scraper
+EnvironmentFile=/opt/Norwich-UK-WhitespaceWS-Scraper/.env
+# Run daily at 8am UTC via internal scheduler; adjust CRON_PATTERN as needed
+Environment=CRON_PATTERN=0 8 * * *
+ExecStart=/opt/Norwich-UK-WhitespaceWS-Scraper/.venv/bin/python scrape.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
