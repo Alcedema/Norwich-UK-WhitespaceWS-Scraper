@@ -30,6 +30,7 @@ file. It defaults to `/var/www/html`.
 - `CRON_JITTER_MAX_SECONDS` – random delay before each run (default `60`, set `0` to disable – not recommended)
 - `KEEP_DAYS` – past event retention: `-1` keeps all (default), `0` keeps none, `N` keeps last `N` days
 - `LOCAL_OUTPUT_DIR` – host directory for the generated file (default `/var/www/html`)
+- `DEBUG` – enable verbose logging of the scraping steps
 
 ## Scheduling
 

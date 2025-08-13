@@ -8,6 +8,11 @@ from playwright.async_api import async_playwright
 TARGET_URL  = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
 OUTPUT_PATH = Path(os.getenv("OUTPUT_PATH", "/output/bins.ics"))
 HEADLESS    = os.getenv("HEADLESS", "1") == "1"
+DEBUG       = os.getenv("DEBUG", "0").lower() not in ("0", "false", "")
+
+def debug(*args):
+    if DEBUG:
+        print("[DEBUG]", *args)
 
 def env_int(name: str, default: int) -> int:
     v = os.getenv(name, "").strip()
@@ -53,6 +58,7 @@ def extract_events_from_html(html: str):
         s = m.group("service").split()[0].capitalize()
         if (s, d) not in seen:
             seen.add((s, d)); out.append((s, d))
+            debug(f"Found event: {s} on {d}")
     return out
 
 def load_calendar(path: Path) -> Calendar:
@@ -74,6 +80,7 @@ def add_events(cal: Calendar, items: list[tuple[str, date]]) -> int:
     existing, added = calendar_keys(cal), 0
     for summary, d in items:
         if (summary, d) in existing: continue
+        debug(f"Adding event: {summary} on {d}")
         ev = Event(name=summary)
         ev.begin = d
         ev.end = d + timedelta(days=1)
@@ -93,6 +100,7 @@ def prune_events(cal: Calendar, keep_days: int) -> int:
         except Exception:
             continue
         if ev_date < cutoff:
+            debug(f"Pruning event: {(ev.name or '').strip()} on {ev_date}")
             cal.events.remove(ev)
             removed += 1
     return removed
@@ -104,31 +112,52 @@ def save_calendar(path: Path, cal: Calendar):
 
 async def run():
     async with async_playwright() as p:
+        debug(f"Launching browser (headless={HEADLESS})")
         browser = await p.chromium.launch(headless=HEADLESS)
         context = await browser.new_context(locale="en-GB", timezone_id="Europe/London")
         page = await context.new_page()
 
+        debug(f"Navigating to {TARGET_URL}")
         await page.goto(TARGET_URL, wait_until="domcontentloaded")
         await page.wait_for_load_state("networkidle")
+        if DEBUG:
+            content = await page.content()
+            debug("'View my collections' link present:", "View my collections" in content)
 
+        debug("Clicking 'View my collections'")
         await page.get_by_role("link", name="View my collections").click()
+
+        debug("Filling form fields")
         await page.get_by_role("textbox", name="Property name or number").fill(HOUSE_NUMBER)
+        debug(f"Filled house number: {HOUSE_NUMBER}")
         await page.get_by_role("textbox", name="Street name").fill(STREET_NAME)
+        debug(f"Filled street name: {STREET_NAME}")
         await page.get_by_role("textbox", name="Postcode").fill(POSTCODE)
+        debug(f"Filled postcode: {POSTCODE}")
+
+        debug("Submitting search")
         await page.get_by_role("button", name="Continue").click()
 
         addr_links = page.get_by_role("link").filter(has_text=re.compile(r","))
         await addr_links.first.wait_for()
+        if DEBUG:
+            links = await addr_links.all()
+            debug(f"Found {len(links)} address link(s)")
+        debug("Selecting first address")
         await addr_links.first.click()
         await page.wait_for_load_state("networkidle")
 
         html = await page.content()
+        debug("'Waste Collection Service' in final page:", "Waste Collection Service" in html)
         items = extract_events_from_html(html)
+        debug(f"Extracted {len(items)} event(s): {items}")
 
         cal = load_calendar(OUTPUT_PATH)
         added = add_events(cal, items)
         removed = prune_events(cal, KEEP_DAYS)
+        debug(f"Calendar updates - added: {added}, removed: {removed}")
         if added or removed or not OUTPUT_PATH.exists():
+            debug(f"Saving calendar to {OUTPUT_PATH}")
             save_calendar(OUTPUT_PATH, cal)
 
         await context.close(); await browser.close()
