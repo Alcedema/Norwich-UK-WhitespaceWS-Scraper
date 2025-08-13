@@ -2,18 +2,40 @@
 
 Norwich City Council moved to WhitespaceWS to fulfil their waste services and took down the old map logic
 
-# To use..
+# Setup
 
-Copy `.env.example` to `.env` and edit the environment variables, then:
+Copy `.env.example` to `.env` and edit the environment variables.
+
+## Docker
 
 ```
 docker compose build
 docker compose run --rm scraper
-# bins.ics -> /output/bins.ics
+# bins.ics -> ${LOCAL_OUTPUT_DIR:-/var/www/html}/bins.ics
 ```
 
-Set `LOCAL_OUTPUT_DIR` in `.env` to control the host directory for the generated
-file. It defaults to `/var/www/html`.
+`LOCAL_OUTPUT_DIR` controls the host directory for the generated file.
+
+## Local Python
+
+Create a virtual environment and install dependencies:
+
+```
+python -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+playwright install
+```
+
+Run the scraper:
+
+```
+python scrape.py
+# bins.ics -> ${LOCAL_OUTPUT_DIR:-/var/www/html}/bins.ics
+```
+
+The script automatically loads the `.env` file. Schedule it with your own
+cron job or systemd timer, or set `CRON_PATTERN` for built-in scheduling.
 
 ## Environment variables
 
@@ -25,11 +47,11 @@ file. It defaults to `/var/www/html`.
 
 ### Optional
 
-- `OUTPUT_PATH` – override calendar output path (default `/output/bins.ics`)
+- `OUTPUT_PATH` – override calendar output path (default `${LOCAL_OUTPUT_DIR}/bins.ics`; inside the container the default is `/output/bins.ics`)
 - `CRON_PATTERN` – run on an internal schedule when set, e.g. `0 8 * * *` for every day at 8:00am UTC / 9:00am BST
 - `CRON_JITTER_MAX_SECONDS` – random delay before each run (default `60`, set `0` to disable – not recommended)
 - `KEEP_DAYS` – past event retention: `-1` keeps all (default), `0` keeps none, `N` keeps last `N` days
-- `LOCAL_OUTPUT_DIR` – host directory for the generated file (default `/var/www/html`)
+- `LOCAL_OUTPUT_DIR` – host directory for the generated file used by docker compose and local runs (default `/var/www/html`)
 - `DEBUG` – enable verbose logging of the scraping steps
 
 ## Scheduling
