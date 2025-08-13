@@ -1,0 +1,8 @@
+[Unit]
+Description=Norwich WhitespaceWS Scraper (oneshot)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/Norwich-UK-WhitespaceWS-Scraper
+EnvironmentFile=/opt/Norwich-UK-WhitespaceWS-Scraper/.env
+ExecStart=/opt/Norwich-UK-WhitespaceWS-Scraper/.venv/bin/python scrape.py
