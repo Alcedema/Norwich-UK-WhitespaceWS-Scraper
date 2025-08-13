@@ -66,6 +66,24 @@ Python virtual environment at `.venv`:
 Copy the desired files to `/etc/systemd/system/`, tweak schedules or `ExecStart`
 if your environment differs, then enable with `systemctl enable --now <unit>`.
 
+## Home Assistant
+
+The generated calendar can be used in [Home Assistant's ICS calendar integration](https://www.home-assistant.io/integrations/calendar.ics/).
+Expose the exported `bins.ics` file via HTTP and add it as a remote calendar:
+
+```
+calendar:
+  - platform: ics
+    name: norwich_bins
+    url: http://YOUR_HOST/path/to/bins.ics
+```
+
+An automation and a few helper entities can pull upcoming events from the
+`calendar.norwich_bins` entity to show the next collection and whether a garden
+waste pickup occurs at the same time. Example configuration, including sample
+[Mushroom](https://github.com/piitaya/lovelace-mushroom) cards, is available in
+[`home-assistant/home-assistant.yaml`](home-assistant/home-assistant.yaml).
+
 ## Environment variables
 
 ### Required
