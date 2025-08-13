@@ -9,6 +9,8 @@ TARGET_URL  = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
 OUTPUT_PATH = Path(os.getenv("OUTPUT_PATH", "/output/bins.ics"))
 HEADLESS    = os.getenv("HEADLESS", "1") == "1"
 CRON_JITTER_MAX_SECONDS = int(os.getenv("CRON_JITTER_MAX_SECONDS", "60"))
+KEEP_DAYS_ENV = os.getenv("KEEP_DAYS", "").strip()
+KEEP_DAYS = int(KEEP_DAYS_ENV) if KEEP_DAYS_ENV else None
 
 def env_required(name: str) -> str:
     v = os.getenv(name, "").strip()
@@ -61,6 +63,21 @@ def add_events(cal: Calendar, items: list[tuple[str, date]]) -> int:
         cal.events.add(ev); added += 1
     return added
 
+def prune_events(cal: Calendar, keep_days: int | None) -> int:
+    if keep_days is None:
+        return 0
+    cutoff = date.today() - timedelta(days=keep_days)
+    removed = 0
+    for ev in list(cal.events):
+        try:
+            ev_date = ev.begin.date()
+        except Exception:
+            continue
+        if ev_date < cutoff:
+            cal.events.remove(ev)
+            removed += 1
+    return removed
+
 def save_calendar(path: Path, cal: Calendar):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(cal.serialize(), encoding="utf-8")
@@ -90,7 +107,9 @@ async def run():
         items = extract_events_from_html(html)
 
         cal = load_calendar(OUTPUT_PATH)
-        if add_events(cal, items) or not OUTPUT_PATH.exists():
+        added = add_events(cal, items)
+        removed = prune_events(cal, KEEP_DAYS)
+        if added or removed or not OUTPUT_PATH.exists():
             save_calendar(OUTPUT_PATH, cal)
 
         await context.close(); await browser.close()

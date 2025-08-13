@@ -22,3 +22,10 @@ the container run the scraper on its own internal schedule, where the same
 jitter is applied before every run. Whatever scheduling approach you use,
 ensure you abide by WhitespaceWS terms and conditions regarding scraping
 intervals.
+
+## Event retention
+
+By default all historical events remain in the generated calendar. Set
+`KEEP_DAYS` in the environment to remove events older than that many days prior
+to today. For example, `KEEP_DAYS=0` keeps no past events, while
+`KEEP_DAYS=7` retains only the last week's events.
