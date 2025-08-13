@@ -1,6 +1,6 @@
 # The need..
 
-Norwich City Council moved to WhitespaceWS to fulfil their waste services and took down the old map logic
+Norwich City Council moved to WhitespaceWS to fulfil their waste services and took down the old mynorwich links.
 
 # Setup
 
