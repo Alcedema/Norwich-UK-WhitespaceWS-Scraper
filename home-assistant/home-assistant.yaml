@@ -1,0 +1,201 @@
+# Example Home Assistant configuration for using the Norwich bin collection
+# ICS file with Home Assistant. The ICS file is fetched using the built-in
+# ICS calendar integration:
+#
+# calendar:
+#   - platform: ics
+#     name: norwich_bins
+#     url: http://YOUR_HOST/path/to/bins.ics
+#
+# Automation and helpers below track the next collection event and expose
+# it for use in the UI.
+
+automation:
+  - id: update_next_bins_from_calendar
+    alias: Update next bins from calendar.norwich_bins
+    mode: restart
+    trigger:
+      - platform: homeassistant
+        event: start
+      - platform: event
+        event_type: automation_reloaded
+      - platform: time_pattern
+        minutes: "/15"
+    action:
+      - service: calendar.get_events
+        target:
+          entity_id: calendar.norwich_bins
+        data:
+          start_date_time: "{{ now().replace(hour=0, minute=0, second=0, microsecond=0).isoformat() }}"
+          end_date_time: "{{ (now() + timedelta(days=45)).replace(hour=23, minute=59, second=59, microsecond=0).isoformat() }}"
+        response_variable: cal
+      - variables:
+          bucket: "{{ cal['calendar.norwich_bins'] if 'calendar.norwich_bins' in cal else cal }}"
+          events: "{{ bucket.get('events', []) }}"
+          ev: "{{ events | sort(attribute='start') }}"
+          main_name: >-
+            {% set ns = namespace(name='') %}
+            {% for e in ev %}
+              {% set s = as_local(as_datetime(e.start | default(e['start']))) %}
+              {% set sum = (e.summary | default(e['summary']) | string).strip() %}
+              {% set norm = sum | lower %}
+              {% if s and s.date() >= now().date() and norm in ['domestic','recycling'] and ns.name == '' %}
+                {% set ns.name = 'Recycling' if norm == 'recycling' else 'Domestic' %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.name }}
+          main_date: >-
+            {% set ns = namespace(date='') %}
+            {% for e in ev %}
+              {% set s = as_local(as_datetime(e.start | default(e['start']))) %}
+              {% set sum = (e.summary | default(e['summary']) | string).strip() %}
+              {% set norm = sum | lower %}
+              {% if s and s.date() >= now().date() and norm in ['domestic','recycling'] and ns.date == '' %}
+                {% set ns.date = s.date().isoformat() %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.date }}
+          garden_same_day: >-
+            {% set ns = namespace(date='') %}
+            {% for e in ev %}
+              {% set s = as_local(as_datetime(e.start | default(e['start']))) %}
+              {% set sum = (e.summary | default(e['summary']) | string).strip() %}
+              {% set norm = sum | lower %}
+              {% if s and s.date() >= now().date() and norm in ['domestic','recycling'] and ns.date == '' %}
+                {% set ns.date = s.date().isoformat() %}
+              {% endif %}
+            {% endfor %}
+            {% set g = namespace(val=false) %}
+            {% if ns.date %}
+              {% for e in ev %}
+                {% set s = as_local(as_datetime(e.start | default(e['start']))) %}
+                {% set norm = (e.summary | default(e['summary']) | string).lower().strip() %}
+                {% if s and s.date().isoformat() == ns.date and norm == 'garden' %}
+                  {% set g.val = true %}
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+            {{ g.val }}
+      - choose:
+          - conditions: "{{ main_name != '' and main_date != '' }}"
+            sequence:
+              - service: input_text.set_value
+                target: { entity_id: input_text.bin_next_name }
+                data: { value: "{{ main_name }}" }
+              - service: input_datetime.set_datetime
+                target: { entity_id: input_datetime.bin_next_date }
+                data: { date: "{{ main_date }}" }
+              - service: "input_boolean.turn_{{ 'on' if garden_same_day else 'off' }}"
+                target: { entity_id: input_boolean.bin_next_has_garden }
+          - conditions: []
+            sequence:
+              - service: input_text.set_value
+                target: { entity_id: input_text.bin_next_name }
+                data: { value: "" }
+              - service: input_boolean.turn_off
+                target: { entity_id: input_boolean.bin_next_has_garden }
+
+template:
+  - sensor:
+      - name: bin_next_when
+        unique_id: bin_next_when
+        state: >-
+          {% set name = states('input_text.bin_next_name') %}
+          {% set d = states('input_datetime.bin_next_date') %}
+          {% if not name or d in ['unknown','unavailable',''] %}unknown{% else %}
+          {% set col = strptime(d, '%Y-%m-%d') %}
+          {% set delta = (col.date() - now().date()).days %}
+          {% if delta == 0 %}Today
+          {% elif delta == 1 %}Tomorrow
+          {% elif 2 <= delta <= 6 %}{{ col.strftime('%A') }}
+          {% elif 7 <= delta <= 13 %}Next {{ col.strftime('%A') }}
+          {% else %}
+            {% set day = col.day %}
+            {{ col.strftime('%A') }} the
+            {% if day in [11,12,13] %} {{ day }}th
+            {% elif day % 10 == 1 %} {{ day }}st
+            {% elif day % 10 == 2 %} {{ day }}nd
+            {% elif day % 10 == 3 %} {{ day }}rd
+            {% else %} {{ day }}th
+            {% endif %}
+          {% endif %}
+          {% endif %}
+        attributes:
+          days_until: >-
+            {% set name = states('input_text.bin_next_name') %}
+            {% set d = states('input_datetime.bin_next_date') %}
+            {% if not name or d in ['unknown','unavailable',''] %}-1{% else %}
+            {% set col = strptime(d, '%Y-%m-%d') %}
+            {{ (col.date() - now().date()).days }}
+            {% endif %}
+  - binary_sensor:
+      - name: waste_collection_soon
+        unique_id: waste_collection_soon
+        state: >-
+          {% set du = state_attr('sensor.bin_next_when','days_until') | int(-1) %}
+          {{ 0 <= du <= 2 }}
+        attributes:
+          days_until: "{{ state_attr('sensor.bin_next_when','days_until') }}"
+
+input_text:
+  bin_next_name:
+    name: Next bin main name
+    max: 32
+    initial: ""
+
+input_datetime:
+  bin_next_date:
+    name: Next bin date
+    has_date: true
+    has_time: false
+
+input_boolean:
+  bin_next_has_garden:
+    name: Next bin has garden
+
+# Example Mushroom cards for Lovelace
+lovelace:
+  mushroom_card: |
+    type: custom:mushroom-template-card
+    fill_container: true
+    primary: >-
+      {% set name = states('input_text.bin_next_name') %}
+      {% set when = states('sensor.bin_next_when') %}
+      {% if name not in ['unknown','unavailable',''] and when not in ['unknown','unavailable',''] %}
+        {{ 'Recycling' if name == 'Recycling' else 'General' }}{% if is_state('input_boolean.bin_next_has_garden','on') %} + Garden 🌿{% endif %} Waste
+      {% endif %}
+    secondary: >-
+      {% set name = states('input_text.bin_next_name') %}
+      {% set when = states('sensor.bin_next_when') %}
+      {% if name not in ['unknown','unavailable',''] and when not in ['unknown','unavailable',''] %}
+        {{ when }}
+      {% endif %}
+    icon: >-
+      {% if is_state('input_text.bin_next_name','Recycling') %} mdi:recycle {% else %} fas:trash-can {% endif %}
+    icon_color: >-
+      {% set du = state_attr('sensor.bin_next_when','days_until') | int(-1) %}
+      {% set name = states('input_text.bin_next_name') %}
+      {% if du < 0 %} grey {% elif name == 'Recycling' %} blue {% else %} green {% endif %}
+    tap_action:
+      action: more-info
+    view_layout:
+      position: sidebar
+    visibility:
+      - condition: state
+        entity: binary_sensor.waste_collection_soon
+        state: "on"
+  mushroom_chip: |
+    - type: template
+      icon: >-
+        {% if is_state('input_text.bin_next_name','Recycling') %} mdi:recycle {% else %} fas:trash-can {% endif %}
+      icon_color: >-
+        {% set du = state_attr('sensor.bin_next_when','days_until') | int(-1) %}
+        {% set name = states('input_text.bin_next_name') %}
+        {% if du < 0 %} grey {% elif name == 'Recycling' %} blue {% else %} green {% endif %}
+      content: >-
+        {% set when = states('sensor.bin_next_when') %}
+        {% if when not in ['unknown','unavailable',''] %}
+          {{ when }}{% if is_state('input_boolean.bin_next_has_garden','on') %} 🌿{% endif %}
+        {% endif %}
+      tap_action:
+        action: more-info
