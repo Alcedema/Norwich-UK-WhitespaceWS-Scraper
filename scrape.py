@@ -183,8 +183,10 @@ async def main():
         print(f"Initial sleep for {initial_jitter:.0f}s")
         await asyncio.sleep(initial_jitter)
 
+    # Always perform an initial run so DEBUG output is shown and the calendar
+    # is generated even when a CRON pattern is supplied.
+    await run()
     if not pattern:
-        await run()
         return
 
     from croniter import croniter
