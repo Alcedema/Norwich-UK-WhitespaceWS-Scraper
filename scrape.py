@@ -1,11 +1,13 @@
+# scrape.py
 import os
 import re
 import hashlib
-from datetime import datetime, timedelta, UTC
 from pathlib import Path
+from datetime import datetime, timedelta, UTC, date
 from playwright.sync_api import Playwright, sync_playwright
+from ics import Calendar, Event
 
-# --- Config ---
+# ---- Config ----
 TARGET_URL = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
 OUTPUT_PATH = Path(os.getenv("OUTPUT_PATH", "/output/bins.ics"))
 HEADLESS = os.getenv("HEADLESS", "1") == "1"
@@ -17,116 +19,75 @@ def env_required(name: str) -> str:
     return v
 
 HOUSE_NUMBER = env_required("HOUSE_NUMBER")
-STREET_NAME = env_required("STREET_NAME")
-POSTCODE = env_required("POSTCODE")
+STREET_NAME  = env_required("STREET_NAME")
+POSTCODE     = env_required("POSTCODE")
 
-# --- Helpers: iCal read/write ---
-def parse_ics_events(path: Path):
-    events = set()
-    if not path.exists():
-        return events
-    summary = None
-    dtstart = None
-    in_event = False
-    for raw in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-        line = raw.strip()
-        if line == "BEGIN:VEVENT":
-            in_event = True
-            summary = None
-            dtstart = None
-        elif line == "END:VEVENT":
-            if in_event and summary and dtstart:
-                events.add((summary, dtstart))
-            in_event = False
-        elif in_event:
-            if line.startswith("SUMMARY:"):
-                summary = line[len("SUMMARY:"):].strip()
-            elif line.startswith("DTSTART;VALUE=DATE:"):
-                dtstart = line.split(":", 1)[1].strip()
-            elif line.startswith("DTSTART:") and ";" not in line:
-                dtstart = line.split(":", 1)[1].strip()
-    return events
-
-def ics_header():
-    return (
-        "BEGIN:VCALENDAR\r\n"
-        "PRODID:-//Tim Bin Export//Playwright//EN\r\n"
-        "VERSION:2.0\r\n"
-        "CALSCALE:GREGORIAN\r\n"
-        "METHOD:PUBLISH\r\n"
-    )
-
-def ics_footer():
-    return "END:VCALENDAR\r\n"
-
-def fold(line: str) -> str:
-    out, width, buf = [], 0, []
-    for ch in line:
-        buf.append(ch)
-        width += 1
-        if width >= 73:
-            out.append("".join(buf))
-            buf = ["\r\n "]
-            width = 1
-    out.append("".join(buf))
-    return "".join(out)
-
-def event_block(summary: str, yyyymmdd: str) -> str:
-    dt = datetime.strptime(yyyymmdd, "%Y%m%d")
-    dtend = (dt + timedelta(days=1)).strftime("%Y%m%d")
-    uid_src = f"{summary}|{yyyymmdd}|bins-norwich"
-    uid = hashlib.sha1(uid_src.encode()).hexdigest() + "@bins"
-    now = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    lines = [
-        "BEGIN:VEVENT",
-        f"UID:{uid}",
-        f"DTSTAMP:{now}",
-        f"DTSTART;VALUE=DATE:{yyyymmdd}",
-        f"DTEND;VALUE=DATE:{dtend}",
-        fold(f"SUMMARY:{summary}"),
-        "END:VEVENT",
-    ]
-    return "\r\n".join(lines) + "\r\n"
-
-def append_events(path: Path, new_events: list[tuple[str, str]]):
-    existing = parse_ics_events(path)
-    to_add = [(s, d) for (s, d) in new_events if (s, d) not in existing]
-    if not to_add and path.exists():
-        return
-    pieces = []
-    if path.exists():
-        content = path.read_text(encoding="utf-8", errors="ignore")
-        if not content.strip().endswith("END:VCALENDAR"):
-            content = (content.rstrip() + "\r\n" + ics_footer())
-        content = content.rstrip("\r\n")
-        content = content[: content.rfind("END:VCALENDAR")]
-        pieces.append(content)
-    else:
-        pieces.append(ics_header())
-    for s, d in to_add:
-        pieces.append(event_block(s, d))
-    pieces.append(ics_footer())
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("".join(pieces), encoding="utf-8")
-
-# --- Scrape parsing ---
+# ---- Scrape parsing ----
 SERVICE_RE = re.compile(
     r"(?P<date>\b\d{2}/\d{2}/\d{4}\b).*?(?P<service>\b(?:Domestic|Food|Garden|Recycling)\b).*?Collection Service",
     re.IGNORECASE | re.DOTALL,
 )
 
 def extract_events_from_html(html: str):
-    events = []
+    """Return list of (summary:str, event_date:date)."""
+    out, seen = [], set()
     for m in SERVICE_RE.finditer(html):
         dmy = m.group("date")
         typ = m.group("service")
         summary = typ.split()[0].capitalize()
-        dt = datetime.strptime(dmy, "%d/%m/%Y").strftime("%Y%m%d")
-        if (summary, dt) not in events:
-            events.append((summary, dt))
-    return events
+        d = datetime.strptime(dmy, "%d/%m/%Y").date()
+        key = (summary, d)
+        if key not in seen:
+            seen.add(key)
+            out.append(key)
+    return out
 
-# --- Playwright flow ---
+# ---- ICS helpers (using `ics`) ----
+def load_calendar(path: Path) -> Calendar:
+    if path.exists():
+        return Calendar(path.read_text(encoding="utf-8", errors="ignore"))
+    return Calendar()
+
+def make_uid(summary: str, d: date) -> str:
+    base = f"{summary}|{d.isoformat()}|bins-norwich"
+    return hashlib.sha1(base.encode()).hexdigest() + "@bins"
+
+def calendar_keys(cal: Calendar):
+    """Set of (summary, date) from existing events (all-day assumed)."""
+    keys = set()
+    for ev in cal.events:
+        # If all-day, ev.begin.date() is correct; end is exclusive
+        try:
+            s = (ev.name or "").strip()
+            d = ev.begin.date()
+            keys.add((s, d))
+        except Exception:
+            continue
+    return keys
+
+def add_events(cal: Calendar, new_items: list[tuple[str, date]]) -> int:
+    existing = calendar_keys(cal)
+    added = 0
+    for summary, d in new_items:
+        if (summary, d) in existing:
+            continue
+        ev = Event()
+        ev.name = summary
+        ev.begin = d  # date ⇒ all-day when saved (we also ensure end)
+        ev.end = d + timedelta(days=1)  # exclusive end for all-day
+        ev.uid = make_uid(summary, d)
+        # RFC-compliant stamp (UTC)
+        ev.created = datetime.now(UTC)
+        ev.last_modified = ev.created
+        cal.events.add(ev)
+        added += 1
+    return added
+
+def save_calendar(path: Path, cal: Calendar):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(str(cal), encoding="utf-8")
+
+# ---- Playwright flow ----
 def run(playwright: Playwright) -> None:
     browser = playwright.chromium.launch(headless=HEADLESS)
     context = browser.new_context(locale="en-GB", timezone_id="Europe/London")
@@ -141,7 +102,7 @@ def run(playwright: Playwright) -> None:
     page.get_by_role("textbox", name="Postcode").fill(POSTCODE)
     page.get_by_role("button", name="Continue").click()
 
-    # Select the FIRST address result (robust: links containing a comma look like address entries)
+    # click the first address result (links with commas look like address rows)
     addr_links = page.get_by_role("link").filter(has_text=re.compile(r","))
     addr_links.first.wait_for()
     addr_links.first.click()
@@ -149,10 +110,13 @@ def run(playwright: Playwright) -> None:
     page.wait_for_load_state("networkidle")
 
     html = page.content()
-    events = extract_events_from_html(html)
-    append_events(OUTPUT_PATH, events)
+    items = extract_events_from_html(html)
 
-    context.storage_state(path="auth.json")
+    cal = load_calendar(OUTPUT_PATH)
+    added = add_events(cal, items)
+    if added or not OUTPUT_PATH.exists():
+        save_calendar(OUTPUT_PATH, cal)
+
     context.close()
     browser.close()
 
