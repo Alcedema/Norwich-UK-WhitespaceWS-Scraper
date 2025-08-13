@@ -62,7 +62,8 @@ def add_events(cal: Calendar, items: list[tuple[str, date]]) -> int:
 
 def save_calendar(path: Path, cal: Calendar):
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(str(cal), encoding="utf-8")
+    path.write_text(cal.serialize(), encoding="utf-8")
+
 
 async def run():
     async with async_playwright() as p:
