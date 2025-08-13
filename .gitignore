@@ -1,5 +1,41 @@
-.env
-output/
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*.pyo
+*.so
+.python-version
+
+# Virtualenvs
 .venv/
+venv/
+env/
+
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Env files
+.env
+.env.* 
+!.env.example
+
+# Logs and outputs
+*.log
+output/
+*.ics
+
+# Build/packaging
+build/
+dist/
+*.egg-info/
+
+# Editors/OS
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
