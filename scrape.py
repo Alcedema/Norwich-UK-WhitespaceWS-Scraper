@@ -1,5 +1,5 @@
 # scrape.py (async, no greenlet needed)
-import os, re, hashlib, asyncio
+import os, re, hashlib, asyncio, random
 from pathlib import Path
 from datetime import datetime, timedelta, date, UTC
 from ics import Calendar, Event
@@ -8,6 +8,7 @@ from playwright.async_api import async_playwright
 TARGET_URL  = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
 OUTPUT_PATH = Path(os.getenv("OUTPUT_PATH", "/output/bins.ics"))
 HEADLESS    = os.getenv("HEADLESS", "1") == "1"
+CRON_JITTER_MAX_SECONDS = int(os.getenv("CRON_JITTER_MAX_SECONDS", "60"))
 
 def env_required(name: str) -> str:
     v = os.getenv(name, "").strip()
@@ -97,6 +98,18 @@ async def run():
 
 async def main():
     pattern = os.getenv("CRON_PATTERN", "").strip()
+    print(
+        f"Applying random jitter up to {CRON_JITTER_MAX_SECONDS}s to avoid predictable scraping."
+    )
+    print(
+        "Set CRON_JITTER_MAX_SECONDS=0 to disable (not recommended).\n"
+        "Please abide by WhitespaceWS terms and conditions regarding scraping intervals."
+    )
+    initial_jitter = random.uniform(0, max(0, CRON_JITTER_MAX_SECONDS))
+    if initial_jitter:
+        print(f"Initial sleep for {initial_jitter:.0f}s")
+        await asyncio.sleep(initial_jitter)
+
     if not pattern:
         await run()
         return
@@ -106,7 +119,10 @@ async def main():
         now = datetime.now()
         itr = croniter(pattern, now)
         next_time = itr.get_next(datetime)
-        await asyncio.sleep((next_time - now).total_seconds())
+        jitter = random.uniform(0, max(0, CRON_JITTER_MAX_SECONDS))
+        sleep_for = (next_time - now).total_seconds() + jitter
+        print(f"Sleeping for {sleep_for:.0f}s (includes {jitter:.0f}s jitter)")
+        await asyncio.sleep(sleep_for)
         await run()
 
 
