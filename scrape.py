@@ -2,13 +2,16 @@
 import os, re, hashlib, asyncio, random
 from pathlib import Path
 from datetime import datetime, timedelta, date, UTC
+from dotenv import load_dotenv
 from ics import Calendar, Event
 from playwright.async_api import async_playwright
 
-TARGET_URL  = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
-OUTPUT_PATH = Path(os.getenv("OUTPUT_PATH", "/output/bins.ics"))
-HEADLESS    = os.getenv("HEADLESS", "1") == "1"
-DEBUG       = os.getenv("DEBUG", "0").lower() not in ("0", "false", "")
+load_dotenv()
+TARGET_URL         = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
+DEFAULT_OUTPUT_DIR = Path(os.getenv("LOCAL_OUTPUT_DIR", "/var/www/html"))
+OUTPUT_PATH        = Path(os.getenv("OUTPUT_PATH") or DEFAULT_OUTPUT_DIR / "bins.ics")
+HEADLESS           = os.getenv("HEADLESS", "1") == "1"
+DEBUG              = os.getenv("DEBUG", "0").lower() not in ("0", "false", "")
 
 def debug(*args):
     if DEBUG:
