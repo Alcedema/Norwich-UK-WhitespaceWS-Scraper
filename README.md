@@ -4,7 +4,7 @@ Norwich City Council moved to WhitespaceWS to fulfil their waste services and to
 
 # To use..
 
-Edit the environment variables in `compose.yaml` (see below), then:
+Copy `.env.example` to `.env` and edit the environment variables, then:
 
 ```
 docker compose build
@@ -12,8 +12,8 @@ docker compose run --rm scraper
 # bins.ics -> /output/bins.ics
 ```
 
-`LOCAL_OUTPUT_DIR` controls the host directory for the generated file and
-defaults to `/var/www/html`.
+Set `LOCAL_OUTPUT_DIR` in `.env` to control the host directory for the generated
+file. It defaults to `/var/www/html`.
 
 ## Environment variables
 
@@ -27,8 +27,9 @@ defaults to `/var/www/html`.
 
 - `OUTPUT_PATH` – override calendar output path (default `/output/bins.ics`)
 - `CRON_PATTERN` – run on an internal schedule when set, e.g. `0 8 * * *` for every day at 8:00am UTC / 9:00am BST
-- `CRON_JITTER_MAX_SECONDS` – random delay before each run (default `60`, set `0` to disable)
-- `KEEP_DAYS` – remove events older than this many days
+- `CRON_JITTER_MAX_SECONDS` – random delay before each run (default `60`, set `0` to disable – not recommended)
+- `KEEP_DAYS` – past event retention: `-1` keeps all (default), `0` keeps none, `N` keeps last `N` days
+- `LOCAL_OUTPUT_DIR` – host directory for the generated file (default `/var/www/html`)
 
 ## Scheduling
 
@@ -44,7 +45,7 @@ intervals.
 
 ## Event retention
 
-By default all historical events remain in the generated calendar. Set
-`KEEP_DAYS` in the environment to remove events older than that many days prior
-to today. For example, `KEEP_DAYS=0` keeps no past events, while
+By default (`KEEP_DAYS=-1`) all historical events remain in the generated
+calendar. Set `KEEP_DAYS` in the environment to remove events older than that
+many days prior to today. For example, `KEEP_DAYS=0` keeps no past events, while
 `KEEP_DAYS=7` retains only the last week's events.

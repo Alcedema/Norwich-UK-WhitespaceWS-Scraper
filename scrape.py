@@ -8,19 +8,38 @@ from playwright.async_api import async_playwright
 TARGET_URL  = os.getenv("TARGET_URL", "https://bnr-wrp.whitespacews.com/#!")
 OUTPUT_PATH = Path(os.getenv("OUTPUT_PATH", "/output/bins.ics"))
 HEADLESS    = os.getenv("HEADLESS", "1") == "1"
-CRON_JITTER_MAX_SECONDS = int(os.getenv("CRON_JITTER_MAX_SECONDS", "60"))
-KEEP_DAYS_ENV = os.getenv("KEEP_DAYS", "").strip()
-KEEP_DAYS = int(KEEP_DAYS_ENV) if KEEP_DAYS_ENV else None
 
-def env_required(name: str) -> str:
+def env_int(name: str, default: int) -> int:
+    v = os.getenv(name, "").strip()
+    if v == "":
+        return default
+    try:
+        return int(v)
+    except ValueError:
+        raise RuntimeError(f"{name} must be an integer: {v}")
+
+CRON_JITTER_MAX_SECONDS = env_int("CRON_JITTER_MAX_SECONDS", 60)
+if CRON_JITTER_MAX_SECONDS < 0:
+    raise RuntimeError("CRON_JITTER_MAX_SECONDS must be >= 0")
+
+# -1 keeps all, 0 keeps none, N keeps last N days
+KEEP_DAYS = env_int("KEEP_DAYS", -1)
+if KEEP_DAYS < -1:
+    raise RuntimeError("KEEP_DAYS must be -1, 0, or a positive integer")
+
+POSTCODE_RE = re.compile(r"^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$", re.I)
+
+def env_required(name: str, validator=None) -> str:
     v = os.getenv(name, "").strip()
     if not v:
         raise RuntimeError(f"Missing required env var: {name}")
+    if validator and not validator(v):
+        raise RuntimeError(f"Invalid value for {name}: {v}")
     return v
 
 HOUSE_NUMBER = env_required("HOUSE_NUMBER")
 STREET_NAME  = env_required("STREET_NAME")
-POSTCODE     = env_required("POSTCODE")
+POSTCODE     = env_required("POSTCODE", lambda v: POSTCODE_RE.fullmatch(v)).upper()
 
 SERVICE_RE = re.compile(
     r"(?P<date>\b\d{2}/\d{2}/\d{4}\b).*?(?P<service>\b(?:Domestic|Food|Garden|Recycling)\b).*?Collection Service",
@@ -63,8 +82,8 @@ def add_events(cal: Calendar, items: list[tuple[str, date]]) -> int:
         cal.events.add(ev); added += 1
     return added
 
-def prune_events(cal: Calendar, keep_days: int | None) -> int:
-    if keep_days is None:
+def prune_events(cal: Calendar, keep_days: int) -> int:
+    if keep_days < 0:
         return 0
     cutoff = date.today() - timedelta(days=keep_days)
     removed = 0
@@ -117,14 +136,20 @@ async def run():
 
 async def main():
     pattern = os.getenv("CRON_PATTERN", "").strip()
-    print(
-        f"Applying random jitter up to {CRON_JITTER_MAX_SECONDS}s to avoid predictable scraping."
-    )
-    print(
-        "Set CRON_JITTER_MAX_SECONDS=0 to disable (not recommended).\n"
-        "Please abide by WhitespaceWS terms and conditions regarding scraping intervals."
-    )
-    initial_jitter = random.uniform(0, max(0, CRON_JITTER_MAX_SECONDS))
+    if CRON_JITTER_MAX_SECONDS == 0:
+        print(
+            "CRON jitter disabled (not recommended).\n"
+            "Please abide by WhitespaceWS terms and conditions regarding scraping intervals."
+        )
+    else:
+        print(
+            f"Applying random jitter up to {CRON_JITTER_MAX_SECONDS}s to avoid predictable scraping."
+        )
+        print(
+            "Set CRON_JITTER_MAX_SECONDS=0 to disable (not recommended).\n"
+            "Please abide by WhitespaceWS terms and conditions regarding scraping intervals."
+        )
+    initial_jitter = random.uniform(0, CRON_JITTER_MAX_SECONDS)
     if initial_jitter:
         print(f"Initial sleep for {initial_jitter:.0f}s")
         await asyncio.sleep(initial_jitter)
@@ -138,7 +163,7 @@ async def main():
         now = datetime.now()
         itr = croniter(pattern, now)
         next_time = itr.get_next(datetime)
-        jitter = random.uniform(0, max(0, CRON_JITTER_MAX_SECONDS))
+        jitter = random.uniform(0, CRON_JITTER_MAX_SECONDS)
         sleep_for = (next_time - now).total_seconds() + jitter
         print(f"Sleeping for {sleep_for:.0f}s (includes {jitter:.0f}s jitter)")
         await asyncio.sleep(sleep_for)
