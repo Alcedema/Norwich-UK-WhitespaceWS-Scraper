@@ -1,4 +1,8 @@
-# The need..
+# Norwich bin collection → iCalendar (.ics)
+
+Playwright-based scraper for Norwich City Council bin collections. Exports an **.ics** file for Domestic, Recycling, and optional Garden Waste. Runs via **Docker** or locally. Good for **Home Assistant** calendar integration.
+
+## The need..
 
 Norwich City Council moved to WhitespaceWS to fulfil their waste services and took down the old mynorwich links.
 
