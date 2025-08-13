@@ -4,12 +4,31 @@ Norwich City Council moved to WhitespaceWS to fulfil their waste services and to
 
 # To use..
 
+Edit the environment variables in `compose.yaml` (see below), then:
+
 ```
-cp .env.example .env   # edit values
 docker compose build
 docker compose run --rm scraper
 # bins.ics -> /output/bins.ics
 ```
+
+`LOCAL_OUTPUT_DIR` controls the host directory for the generated file and
+defaults to `/var/www/html`.
+
+## Environment variables
+
+### Required
+
+- `HOUSE_NUMBER` – property number
+- `STREET_NAME` – street name
+- `POSTCODE` – property postcode
+
+### Optional
+
+- `OUTPUT_PATH` – override calendar output path (default `/output/bins.ics`)
+- `CRON_PATTERN` – run on an internal schedule when set
+- `CRON_JITTER_MAX_SECONDS` – random delay before each run (default `60`, set `0` to disable)
+- `KEEP_DAYS` – remove events older than this many days
 
 ## Scheduling
 

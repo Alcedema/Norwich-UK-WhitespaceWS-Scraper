@@ -1,12 +1,15 @@
 services:
   scraper:
     build: .
-    env_file:
-      - .env
     environment:
-      OUTPUT_PATH: /output/bins.ics
-      TARGET_URL: https://bnr-wrp.whitespacews.com/#!
-      HEADLESS: "1"
+      # Required environment variables - uncomment and set before running
+      # HOUSE_NUMBER: "1"
+      # STREET_NAME: "Norwich Street"
+      # POSTCODE: "NR1 1.."
+      # Optional environment variables - see README for details
       # CRON_PATTERN: "0 8 * * *"
+      # CRON_JITTER_MAX_SECONDS: "60"
+      # KEEP_DAYS: "30"
+      # OUTPUT_PATH: "/output/bins.ics"
     volumes:
-      - /var/www:/output
+      - ${LOCAL_OUTPUT_DIR:-/var/www/html}:/output
