@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy AS builder
+FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy-py3.12 AS builder
 WORKDIR /tmp/build
 ENV PIP_ROOT_USER_ACTION=ignore
 COPY requirements.txt .
@@ -6,7 +6,7 @@ RUN python -m pip install --upgrade pip \
  && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ---- Final: slim runtime with deps + your script ----
-FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.46.0-jammy-py3.12
 
 ENV TZ=Europe/London \
     PYTHONDONTWRITEBYTECODE=1 \
