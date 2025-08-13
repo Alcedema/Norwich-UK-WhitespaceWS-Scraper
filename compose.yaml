@@ -1,15 +1,18 @@
 services:
   scraper:
     build: .
+    env_file:
+      - .env
     environment:
-      # Required environment variables - uncomment and set before running
-      # HOUSE_NUMBER: "1"
-      # STREET_NAME: "Norwich Street"
-      # POSTCODE: "NR1 1.."
-      # Optional environment variables - see README for details
-      # CRON_PATTERN: "0 8 * * *"
-      # CRON_JITTER_MAX_SECONDS: "60"
-      # KEEP_DAYS: "30"
-      # OUTPUT_PATH: "/output/bins.ics"
+      # Required (fail fast if missing)
+      HOUSE_NUMBER: ${HOUSE_NUMBER:?Set HOUSE_NUMBER in .env}
+      STREET_NAME:  ${STREET_NAME:?Set STREET_NAME in .env}
+      POSTCODE:     ${POSTCODE:?Set POSTCODE in .env}
+
+      # Optional (safe defaults)
+      CRON_PATTERN:              ${CRON_PATTERN:-}
+      CRON_JITTER_MAX_SECONDS:   ${CRON_JITTER_MAX_SECONDS:-60} # 0 disables jitter (not recommended)
+      KEEP_DAYS:                 ${KEEP_DAYS:--1} # -1 keeps all, 0 keeps none
+      OUTPUT_PATH:               ${OUTPUT_PATH:-/output/bins.ics}
     volumes:
       - ${LOCAL_OUTPUT_DIR:-/var/www/html}:/output
