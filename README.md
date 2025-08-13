@@ -8,5 +8,5 @@ Norwich City Council moved to WhitespaceWS to fulfil their waste services and to
 cp .env.example .env   # edit values
 docker compose build
 docker compose run --rm scraper
-# bins.ics -> ./output/bins.ics
+# bins.ics -> /output/bins.ics
 ```
