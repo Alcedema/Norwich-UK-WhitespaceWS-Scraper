@@ -1,4 +1,4 @@
-FROM python:3.13-slim AS builder
+FROM python:3.12-slim AS builder
 WORKDIR /tmp/build
 ENV PIP_ROOT_USER_ACTION=ignore
 
@@ -6,7 +6,7 @@ COPY requirements.txt .
 RUN python -m pip install --upgrade pip \
  && python -m pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-FROM python:3.13-slim
+FROM python:3.12-slim
 
 ENV TZ=Europe/London \
     PYTHONDONTWRITEBYTECODE=1 \
