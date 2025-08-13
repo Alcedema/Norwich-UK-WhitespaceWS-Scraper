@@ -1,5 +1,5 @@
 # scrape.py (async, no greenlet needed)
-import os, re, hashlib
+import os, re, hashlib, asyncio
 from pathlib import Path
 from datetime import datetime, timedelta, date, UTC
 from ics import Calendar, Event
@@ -94,5 +94,21 @@ async def run():
 
         await context.close(); await browser.close()
 
+
+async def main():
+    pattern = os.getenv("CRON_PATTERN", "").strip()
+    if not pattern:
+        await run()
+        return
+
+    from croniter import croniter
+    while True:
+        now = datetime.now()
+        itr = croniter(pattern, now)
+        next_time = itr.get_next(datetime)
+        await asyncio.sleep((next_time - now).total_seconds())
+        await run()
+
+
 if __name__ == "__main__":
-    import asyncio; asyncio.run(run())
+    asyncio.run(main())

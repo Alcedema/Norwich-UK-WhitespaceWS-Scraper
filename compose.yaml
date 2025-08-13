@@ -5,7 +5,8 @@ services:
       - .env
     environment:
       OUTPUT_PATH: /output/bins.ics
-      TARGET_URL: https://bnr-wrp.whitespacews.com/#! 
+      TARGET_URL: https://bnr-wrp.whitespacews.com/#!
       HEADLESS: "1"
+      # CRON_PATTERN: "0 8 * * *"
     volumes:
       - /var/www:/output
