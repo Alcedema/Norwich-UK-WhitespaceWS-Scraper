@@ -26,7 +26,7 @@ defaults to `/var/www/html`.
 ### Optional
 
 - `OUTPUT_PATH` – override calendar output path (default `/output/bins.ics`)
-- `CRON_PATTERN` – run on an internal schedule when set
+- `CRON_PATTERN` – run on an internal schedule when set, e.g. `0 8 * * *` for every day at 8:00am UTC / 9:00am BST
 - `CRON_JITTER_MAX_SECONDS` – random delay before each run (default `60`, set `0` to disable)
 - `KEEP_DAYS` – remove events older than this many days
 
